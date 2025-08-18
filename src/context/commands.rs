@@ -353,8 +353,8 @@ impl CommandInfo {
     }
 }
 
-#[distributed_slice(CMD_LIST)]
-pub static COMMANDS_LIST: [fn() -> Result<CommandInfo, RedisError>] = [..];
+#[distributed_slice()]
+pub static CMD_LIST: [fn() -> Result<CommandInfo, RedisError>] = [..];
 
 pub fn get_redis_key_spec(key_spec: Vec<KeySpec>) -> Vec<raw::RedisModuleCommandKeySpec> {
     let mut redis_key_spec: Vec<raw::RedisModuleCommandKeySpec> =
@@ -372,7 +372,7 @@ api! {[
     /// Register all the commands located on `COMMNADS_LIST`.
     fn register_commands_internal(ctx: &Context) -> Result<(), RedisError> {
         let is_enterprise = ctx.is_enterprise();
-        COMMANDS_LIST.iter().try_for_each(|command| {
+        CMD_LIST.iter().try_for_each(|command| {
             let command_info = command()?;
             let name: CString = CString::new(command_info.name.as_str()).unwrap();
             let mut flags = command_info.flags.as_deref().unwrap_or("").to_owned();
@@ -505,7 +505,7 @@ pub fn register_commands(ctx: &Context) -> Status {
     register_commands_internal(ctx).map_or_else(
         |e| {
             /* Make sure new command registration API is not been used. */
-            if COMMANDS_LIST.is_empty() {
+            if CMD_LIST.is_empty() {
                 return Status::Ok;
             }
             ctx.log_warning(&e.to_string());
