@@ -172,19 +172,19 @@ impl DefragContext {
 }
 
 #[distributed_slice()]
-pub static DEFRAG_FUNCTIONS_LIST: [fn(&DefragContext)] = [..];
+pub static F_DEFRAG_FUNCTIONS_LIST: [fn(&DefragContext)] = [..];
 
 #[distributed_slice()]
-pub static DEFRAG_START_FUNCTIONS_LIST: [fn(&DefragContext)] = [..];
+pub static F_DEFRAG_START_FUNCTIONS_LIST: [fn(&DefragContext)] = [..];
 
 #[distributed_slice()]
-pub static DEFRAG_END_FUNCTIONS_LIST: [fn(&DefragContext)] = [..];
+pub static F_DEFRAG_END_FUNCTIONS_LIST: [fn(&DefragContext)] = [..];
 
 extern "C" fn defrag_function(defrag_ctx: *mut raw::RedisModuleDefragCtx) {
     let mut ctx = DefragContext {
         defrag_ctx: NonNull::new(defrag_ctx).expect("defrag_ctx is expected to be no NULL"),
     };
-    DEFRAG_FUNCTIONS_LIST.iter().for_each(|callback| {
+    F_DEFRAG_FUNCTIONS_LIST.iter().for_each(|callback| {
         callback(&mut ctx);
     });
 }
@@ -193,7 +193,7 @@ extern "C" fn defrag_start_function(defrag_ctx: *mut raw::RedisModuleDefragCtx) 
     let mut ctx = DefragContext {
         defrag_ctx: NonNull::new(defrag_ctx).expect("defrag_ctx is expected to be no NULL"),
     };
-    DEFRAG_START_FUNCTIONS_LIST.iter().for_each(|callback| {
+    F_DEFRAG_START_FUNCTIONS_LIST.iter().for_each(|callback| {
         callback(&mut ctx);
     });
 }
@@ -202,7 +202,7 @@ extern "C" fn defrag_end_function(defrag_ctx: *mut raw::RedisModuleDefragCtx) {
     let mut ctx = DefragContext {
         defrag_ctx: NonNull::new(defrag_ctx).expect("defrag_ctx is expected to be no NULL"),
     };
-    DEFRAG_END_FUNCTIONS_LIST.iter().for_each(|callback| {
+    F_DEFRAG_END_FUNCTIONS_LIST.iter().for_each(|callback| {
         callback(&mut ctx);
     });
 }
@@ -216,7 +216,7 @@ pub fn register_defrag_functions(ctx: &Context) -> Result<(), RedisError> {
             return Ok(());
         }
     };
-    if !DEFRAG_FUNCTIONS_LIST.is_empty() {
+    if !F_DEFRAG_FUNCTIONS_LIST.is_empty() {
         let res = unsafe { register_defrag_function(ctx.ctx, Some(defrag_function)) };
         if res != raw::REDISMODULE_OK as i32 {
             return Err(RedisError::Str("Failed register defrag function"));
@@ -230,7 +230,7 @@ pub fn register_defrag_functions(ctx: &Context) -> Result<(), RedisError> {
             return Ok(());
         }
     };
-    if !DEFRAG_START_FUNCTIONS_LIST.is_empty() || !DEFRAG_END_FUNCTIONS_LIST.is_empty() {
+    if !F_DEFRAG_START_FUNCTIONS_LIST.is_empty() || !F_DEFRAG_END_FUNCTIONS_LIST.is_empty() {
         let res = unsafe {
             register_defrag_callbacks(
                 ctx.ctx,

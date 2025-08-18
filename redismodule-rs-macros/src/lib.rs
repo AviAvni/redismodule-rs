@@ -102,7 +102,7 @@ pub fn role_changed_event_handler(_attr: TokenStream, item: TokenStream) -> Toke
         Err(e) => return e.to_compile_error().into(),
     };
     let gen = quote! {
-        #[linkme::distributed_slice(redis_module::server_events::ROLE_CHANGED_SERVER_EVENTS_LIST)]
+        #[linkme::distributed_slice(redis_module::server_events::F_ROLE_CHANGED_SERVER_EVENTS_LIST)]
         #ast
     };
     gen.into()
@@ -124,7 +124,7 @@ pub fn loading_event_handler(_attr: TokenStream, item: TokenStream) -> TokenStre
         Err(e) => return e.to_compile_error().into(),
     };
     let gen = quote! {
-        #[linkme::distributed_slice(redis_module::server_events::LOADING_SERVER_EVENTS_LIST)]
+        #[linkme::distributed_slice(redis_module::server_events::F_LOADING_SERVER_EVENTS_LIST)]
         #ast
     };
     gen.into()
@@ -146,7 +146,7 @@ pub fn flush_event_handler(_attr: TokenStream, item: TokenStream) -> TokenStream
         Err(e) => return e.to_compile_error().into(),
     };
     let gen = quote! {
-        #[linkme::distributed_slice(redis_module::server_events::FLUSH_SERVER_EVENTS_LIST)]
+        #[linkme::distributed_slice(redis_module::server_events::F_FLUSH_SERVER_EVENTS_LIST)]
         #ast
     };
     gen.into()
@@ -168,7 +168,7 @@ pub fn module_changed_event_handler(_attr: TokenStream, item: TokenStream) -> To
         Err(e) => return e.to_compile_error().into(),
     };
     let gen = quote! {
-        #[linkme::distributed_slice(redis_module::server_events::MODULE_CHANGED_SERVER_EVENTS_LIST)]
+        #[linkme::distributed_slice(redis_module::server_events::F_MODULE_CHANGED_SERVER_EVENTS_LIST)]
         #ast
     };
     gen.into()
@@ -191,7 +191,7 @@ pub fn config_changed_event_handler(_attr: TokenStream, item: TokenStream) -> To
         Err(e) => return e.to_compile_error().into(),
     };
     let gen = quote! {
-        #[linkme::distributed_slice(redis_module::server_events::CONFIG_CHANGED_SERVER_EVENTS_LIST)]
+        #[linkme::distributed_slice(redis_module::server_events::F_CONFIG_CHANGED_SERVER_EVENTS_LIST)]
         #ast
     };
     gen.into()
@@ -213,7 +213,7 @@ pub fn cron_event_handler(_attr: TokenStream, item: TokenStream) -> TokenStream 
         Err(e) => return e.to_compile_error().into(),
     };
     let gen = quote! {
-        #[linkme::distributed_slice(redis_module::server_events::CRON_SERVER_EVENTS_LIST)]
+        #[linkme::distributed_slice(redis_module::server_events::F_CRON_SERVER_EVENTS_LIST)]
         #ast
     };
     gen.into()
@@ -392,7 +392,7 @@ pub fn info_command_handler(_attr: TokenStream, item: TokenStream) -> TokenStrea
         Err(e) => return e.to_compile_error().into(),
     };
     let gen = quote! {
-        #[linkme::distributed_slice(redis_module::server_events::INFO_COMMAND_HANDLER_LIST)]
+        #[linkme::distributed_slice(redis_module::server_events::F_INFO_COMMAND_HANDLER_LIST)]
         #ast
     };
     gen.into()

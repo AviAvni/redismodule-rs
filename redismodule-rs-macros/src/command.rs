@@ -373,7 +373,7 @@ pub(crate) fn redis_command(attr: TokenStream, item: TokenStream) -> TokenStream
             context.reply(response.map(|v| v.into())) as i32
         }
 
-        #[linkme::distributed_slice(redis_module::commands::CMD_LIST)]
+        #[linkme::distributed_slice(redis_module::commands::F_COMMANDS_LIST)]
         fn #get_command_info_function_name() -> Result<redis_module::commands::CommandInfo, redis_module::RedisError> {
             let key_spec = vec![
                 #(

@@ -54,7 +54,7 @@ pub use crate::context::{
 pub use crate::raw::*;
 pub use crate::redismodule::*;
 use backtrace::Backtrace;
-use context::server_events::INFO_COMMAND_HANDLER_LIST;
+use context::server_events::F_INFO_COMMAND_HANDLER_LIST;
 
 /// The detached Redis module context (the context of this module). It
 /// is only set to a proper value after the module is initialised via the
@@ -102,7 +102,7 @@ pub fn basic_info_command_handler(ctx: &InfoContext, for_crash_report: bool) {
         }
     }
 
-    INFO_COMMAND_HANDLER_LIST
+    F_INFO_COMMAND_HANDLER_LIST
         .iter()
         .filter_map(|callback| callback(ctx, for_crash_report).err())
         .for_each(|e| log::error!("Couldn't build info for the module's custom handler: {e}"));

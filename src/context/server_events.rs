@@ -40,25 +40,25 @@ pub enum ServerEventHandler {
 }
 
 #[distributed_slice()]
-pub static ROLE_CHANGED_SERVER_EVENTS_LIST: [fn(&Context, ServerRole)] = [..];
+pub static F_ROLE_CHANGED_SERVER_EVENTS_LIST: [fn(&Context, ServerRole)] = [..];
 
 #[distributed_slice()]
-pub static LOADING_SERVER_EVENTS_LIST: [fn(&Context, LoadingSubevent)] = [..];
+pub static F_LOADING_SERVER_EVENTS_LIST: [fn(&Context, LoadingSubevent)] = [..];
 
 #[distributed_slice()]
-pub static FLUSH_SERVER_EVENTS_LIST: [fn(&Context, FlushSubevent)] = [..];
+pub static F_FLUSH_SERVER_EVENTS_LIST: [fn(&Context, FlushSubevent)] = [..];
 
 #[distributed_slice()]
-pub static MODULE_CHANGED_SERVER_EVENTS_LIST: [fn(&Context, ModuleChangeSubevent)] = [..];
+pub static F_MODULE_CHANGED_SERVER_EVENTS_LIST: [fn(&Context, ModuleChangeSubevent)] = [..];
 
 #[distributed_slice()]
-pub static CONFIG_CHANGED_SERVER_EVENTS_LIST: [fn(&Context, &[&str])] = [..];
+pub static F_CONFIG_CHANGED_SERVER_EVENTS_LIST: [fn(&Context, &[&str])] = [..];
 
 #[distributed_slice()]
-pub static CRON_SERVER_EVENTS_LIST: [fn(&Context, u64)] = [..];
+pub static F_CRON_SERVER_EVENTS_LIST: [fn(&Context, u64)] = [..];
 
 #[distributed_slice()]
-pub static INFO_COMMAND_HANDLER_LIST: [fn(&InfoContext, bool) -> RedisResult<()>] = [..];
+pub static F_INFO_COMMAND_HANDLER_LIST: [fn(&InfoContext, bool) -> RedisResult<()>] = [..];
 
 extern "C" fn cron_callback(
     ctx: *mut raw::RedisModuleCtx,
@@ -69,7 +69,7 @@ extern "C" fn cron_callback(
     let data: &raw::RedisModuleConfigChangeV1 =
         unsafe { &*(data as *mut raw::RedisModuleConfigChangeV1) };
     let ctx = Context::new(ctx);
-    CRON_SERVER_EVENTS_LIST.iter().for_each(|callback| {
+    F_CRON_SERVER_EVENTS_LIST.iter().for_each(|callback| {
         callback(&ctx, data.version);
     });
 }
@@ -86,7 +86,7 @@ extern "C" fn role_changed_callback(
         ServerRole::Replica
     };
     let ctx = Context::new(ctx);
-    ROLE_CHANGED_SERVER_EVENTS_LIST.iter().for_each(|callback| {
+    F_ROLE_CHANGED_SERVER_EVENTS_LIST.iter().for_each(|callback| {
         callback(&ctx, new_role);
     });
 }
@@ -105,7 +105,7 @@ extern "C" fn loading_event_callback(
         _ => LoadingSubevent::Failed,
     };
     let ctx = Context::new(ctx);
-    LOADING_SERVER_EVENTS_LIST.iter().for_each(|callback| {
+    F_LOADING_SERVER_EVENTS_LIST.iter().for_each(|callback| {
         callback(&ctx, loading_sub_event);
     });
 }
@@ -122,7 +122,7 @@ extern "C" fn flush_event_callback(
         FlushSubevent::Ended
     };
     let ctx = Context::new(ctx);
-    FLUSH_SERVER_EVENTS_LIST.iter().for_each(|callback| {
+    F_FLUSH_SERVER_EVENTS_LIST.iter().for_each(|callback| {
         callback(&ctx, flush_sub_event);
     });
 }
@@ -139,7 +139,7 @@ extern "C" fn module_change_event_callback(
         ModuleChangeSubevent::Unloaded
     };
     let ctx = Context::new(ctx);
-    MODULE_CHANGED_SERVER_EVENTS_LIST
+    F_MODULE_CHANGED_SERVER_EVENTS_LIST
         .iter()
         .for_each(|callback| {
             callback(&ctx, module_changed_sub_event);
@@ -168,7 +168,7 @@ extern "C" fn config_change_event_callback(
         })
         .collect();
     let ctx = Context::new(ctx);
-    CONFIG_CHANGED_SERVER_EVENTS_LIST
+    F_CONFIG_CHANGED_SERVER_EVENTS_LIST
         .iter()
         .for_each(|callback| {
             callback(&ctx, config_names.as_slice());
@@ -203,37 +203,37 @@ fn register_single_server_event_type<T>(
 pub fn register_server_events(ctx: &Context) -> Result<(), RedisError> {
     register_single_server_event_type(
         ctx,
-        &ROLE_CHANGED_SERVER_EVENTS_LIST,
+        &F_ROLE_CHANGED_SERVER_EVENTS_LIST,
         raw::REDISMODULE_EVENT_REPLICATION_ROLE_CHANGED,
         Some(role_changed_callback),
     )?;
     register_single_server_event_type(
         ctx,
-        &LOADING_SERVER_EVENTS_LIST,
+        &F_LOADING_SERVER_EVENTS_LIST,
         raw::REDISMODULE_EVENT_LOADING,
         Some(loading_event_callback),
     )?;
     register_single_server_event_type(
         ctx,
-        &FLUSH_SERVER_EVENTS_LIST,
+        &F_FLUSH_SERVER_EVENTS_LIST,
         raw::REDISMODULE_EVENT_FLUSHDB,
         Some(flush_event_callback),
     )?;
     register_single_server_event_type(
         ctx,
-        &MODULE_CHANGED_SERVER_EVENTS_LIST,
+        &F_MODULE_CHANGED_SERVER_EVENTS_LIST,
         raw::REDISMODULE_EVENT_MODULE_CHANGE,
         Some(module_change_event_callback),
     )?;
     register_single_server_event_type(
         ctx,
-        &CONFIG_CHANGED_SERVER_EVENTS_LIST,
+        &F_CONFIG_CHANGED_SERVER_EVENTS_LIST,
         raw::REDISMODULE_EVENT_CONFIG,
         Some(config_change_event_callback),
     )?;
     register_single_server_event_type(
         ctx,
-        &CRON_SERVER_EVENTS_LIST,
+        &F_CRON_SERVER_EVENTS_LIST,
         raw::REDISMODULE_EVENT_CRON_LOOP,
         Some(cron_callback),
     )?;
