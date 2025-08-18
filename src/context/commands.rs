@@ -353,7 +353,7 @@ impl CommandInfo {
     }
 }
 
-#[distributed_slice()]
+#[distributed_slice(CMD_LIST)]
 pub static COMMANDS_LIST: [fn() -> Result<CommandInfo, RedisError>] = [..];
 
 pub fn get_redis_key_spec(key_spec: Vec<KeySpec>) -> Vec<raw::RedisModuleCommandKeySpec> {
