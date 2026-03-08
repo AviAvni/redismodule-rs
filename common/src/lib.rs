@@ -1,6 +1,4 @@
-use serde::Deserialize;
-
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum AclCategory {
     #[default]
     None,

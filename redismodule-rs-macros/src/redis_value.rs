@@ -1,12 +1,10 @@
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
-use serde::Deserialize;
-use serde_syn::{config, from_stream};
 use syn::{
     parse,
     parse::{Parse, ParseStream},
-    parse_macro_input, Data, DataEnum, DataStruct, DeriveInput, Fields,
+    parse_macro_input, Data, DataEnum, DataStruct, DeriveInput, Fields, Token,
 };
 
 /// Generate [From] implementation for [RedisValue] for Enum.
@@ -34,14 +32,29 @@ fn enum_redis_value(struct_name: Ident, enum_data: DataEnum) -> TokenStream {
 }
 
 /// Represent a single field attributes
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Default)]
 struct FieldAttr {
     flatten: bool,
 }
 
 impl Parse for FieldAttr {
     fn parse(input: ParseStream) -> parse::Result<Self> {
-        from_stream(config::JSONY, input)
+        let mut attr = FieldAttr::default();
+        while !input.is_empty() {
+            let key: Ident = input.parse()?;
+            input.parse::<Token![:]>()?;
+            match key.to_string().as_str() {
+                "flatten" => {
+                    let val: syn::LitBool = input.parse()?;
+                    attr.flatten = val.value;
+                }
+                other => {
+                    return Err(syn::Error::new(key.span(), format!("unknown field `{other}`")));
+                }
+            }
+            let _ = input.parse::<Token![,]>();
+        }
+        Ok(attr)
     }
 }
 
@@ -70,10 +83,7 @@ fn struct_redis_value(struct_name: Ident, struct_data: DataStruct) -> TokenStrea
             let field_attr = v.attrs.into_iter().next().map_or(
                 Ok::<_, String>(FieldAttr::default()),
                 |attr| {
-                    let tokens = attr.tokens;
-                    let field_attr: FieldAttr =
-                        parse_macro_input::parse(tokens.into()).map_err(|e| format!("{e}"))?;
-                    Ok(field_attr)
+                    attr.parse_args::<FieldAttr>().map_err(|e| format!("{e}"))
                 },
             )?;
             Ok((name, field_attr))

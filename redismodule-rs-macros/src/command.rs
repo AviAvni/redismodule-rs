@@ -2,15 +2,64 @@ use common::AclCategory;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
-use serde::Deserialize;
-use serde_syn::{config, from_stream};
 use syn::{
+    braced, bracketed, parenthesized,
     parse,
     parse::{Parse, ParseStream},
-    parse_macro_input, ItemFn,
+    parse_macro_input, ItemFn, LitInt, LitStr, Token,
 };
 
-#[derive(Debug, Deserialize)]
+/// Helper to parse a comma-separated list inside brackets: [Item, Item, ...]
+fn parse_bracket_list<T: Parse>(input: ParseStream) -> parse::Result<Vec<T>> {
+    let content;
+    bracketed!(content in input);
+    let mut items = Vec::new();
+    while !content.is_empty() {
+        items.push(content.parse()?);
+        let _ = content.parse::<Token![,]>();
+    }
+    Ok(items)
+}
+
+/// Helper to parse an optional comma-separated list inside brackets, or return None
+/// if the field wasn't provided.
+fn parse_optional_bracket_list<T: Parse>(input: ParseStream) -> parse::Result<Vec<T>> {
+    parse_bracket_list(input)
+}
+
+/// Helper to parse a possibly-negative integer literal (handles `- 1` as `-1`).
+fn parse_i32(input: ParseStream) -> parse::Result<i32> {
+    if input.peek(Token![-]) {
+        input.parse::<Token![-]>()?;
+        let lit: LitInt = input.parse()?;
+        let val: i32 = lit.base10_parse()?;
+        Ok(-val)
+    } else {
+        let lit: LitInt = input.parse()?;
+        lit.base10_parse()
+    }
+}
+
+/// Helper to parse a possibly-negative i64 literal.
+fn parse_i64(input: ParseStream) -> parse::Result<i64> {
+    if input.peek(Token![-]) {
+        input.parse::<Token![-]>()?;
+        let lit: LitInt = input.parse()?;
+        let val: i64 = lit.base10_parse()?;
+        Ok(-val)
+    } else {
+        let lit: LitInt = input.parse()?;
+        lit.base10_parse()
+    }
+}
+
+/// Helper to parse a u32 literal.
+fn parse_u32(input: ParseStream) -> parse::Result<u32> {
+    let lit: LitInt = input.parse()?;
+    lit.base10_parse()
+}
+
+#[derive(Debug)]
 pub enum RedisCommandFlags {
     /// The command may modify the data set (it may also read from it).
     Write,
@@ -83,6 +132,35 @@ pub enum RedisCommandFlags {
     GetchannelsApi,
 }
 
+impl Parse for RedisCommandFlags {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let ident: Ident = input.parse()?;
+        match ident.to_string().as_str() {
+            "Write" => Ok(Self::Write),
+            "ReadOnly" => Ok(Self::ReadOnly),
+            "Admin" => Ok(Self::Admin),
+            "DenyOOM" => Ok(Self::DenyOOM),
+            "DenyScript" => Ok(Self::DenyScript),
+            "AllowLoading" => Ok(Self::AllowLoading),
+            "PubSub" => Ok(Self::PubSub),
+            "Random" => Ok(Self::Random),
+            "AllowStale" => Ok(Self::AllowStale),
+            "NoMonitor" => Ok(Self::NoMonitor),
+            "NoSlowlog" => Ok(Self::NoSlowlog),
+            "Fast" => Ok(Self::Fast),
+            "GetkeysApi" => Ok(Self::GetkeysApi),
+            "NoCluster" => Ok(Self::NoCluster),
+            "NoAuth" => Ok(Self::NoAuth),
+            "MayReplicate" => Ok(Self::MayReplicate),
+            "NoMandatoryKeys" => Ok(Self::NoMandatoryKeys),
+            "Blocking" => Ok(Self::Blocking),
+            "AllowBusy" => Ok(Self::AllowBusy),
+            "GetchannelsApi" => Ok(Self::GetchannelsApi),
+            other => Err(syn::Error::new(ident.span(), format!("unknown command flag `{other}`"))),
+        }
+    }
+}
+
 impl From<&RedisCommandFlags> for &'static str {
     fn from(value: &RedisCommandFlags) -> Self {
         match value {
@@ -110,11 +188,21 @@ impl From<&RedisCommandFlags> for &'static str {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub enum RedisEnterpriseCommandFlags {
     /// A special enterprise only flag, make sure the commands marked with this flag will not be expose to
     /// user via `command` command or on slow log.
     ProxyFiltered,
+}
+
+impl Parse for RedisEnterpriseCommandFlags {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let ident: Ident = input.parse()?;
+        match ident.to_string().as_str() {
+            "ProxyFiltered" => Ok(Self::ProxyFiltered),
+            other => Err(syn::Error::new(ident.span(), format!("unknown enterprise flag `{other}`"))),
+        }
+    }
 }
 
 impl From<&RedisEnterpriseCommandFlags> for &'static str {
@@ -125,7 +213,7 @@ impl From<&RedisEnterpriseCommandFlags> for &'static str {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub enum RedisCommandKeySpecFlags {
     /// Read-Only. Reads the value of the key, but doesn't necessarily return it.
     ReadOnly,
@@ -161,6 +249,26 @@ pub enum RedisCommandKeySpecFlags {
     VariableFlags,
 }
 
+impl Parse for RedisCommandKeySpecFlags {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let ident: Ident = input.parse()?;
+        match ident.to_string().as_str() {
+            "ReadOnly" => Ok(Self::ReadOnly),
+            "ReadWrite" => Ok(Self::ReadWrite),
+            "Overwrite" => Ok(Self::Overwrite),
+            "Remove" => Ok(Self::Remove),
+            "Access" => Ok(Self::Access),
+            "Update" => Ok(Self::Update),
+            "Insert" => Ok(Self::Insert),
+            "Delete" => Ok(Self::Delete),
+            "NotKey" => Ok(Self::NotKey),
+            "Incomplete" => Ok(Self::Incomplete),
+            "VariableFlags" => Ok(Self::VariableFlags),
+            other => Err(syn::Error::new(ident.span(), format!("unknown key spec flag `{other}`"))),
+        }
+    }
+}
+
 impl From<&RedisCommandKeySpecFlags> for &'static str {
     fn from(value: &RedisCommandKeySpecFlags) -> Self {
         match value {
@@ -179,44 +287,168 @@ impl From<&RedisCommandKeySpecFlags> for &'static str {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub struct FindKeysRange {
     last_key: i32,
     steps: i32,
     limit: i32,
 }
 
-#[derive(Debug, Deserialize)]
+impl Parse for FindKeysRange {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let content;
+        braced!(content in input);
+        let mut last_key = None;
+        let mut steps = None;
+        let mut limit = None;
+        while !content.is_empty() {
+            let key: Ident = content.parse()?;
+            content.parse::<Token![:]>()?;
+            match key.to_string().as_str() {
+                "last_key" => last_key = Some(parse_i32(&content)?),
+                "steps" => steps = Some(parse_i32(&content)?),
+                "limit" => limit = Some(parse_i32(&content)?),
+                other => return Err(syn::Error::new(key.span(), format!("unknown field `{other}`"))),
+            }
+            let _ = content.parse::<Token![,]>();
+        }
+        Ok(Self {
+            last_key: last_key.ok_or_else(|| content.error("missing field `last_key`"))?,
+            steps: steps.ok_or_else(|| content.error("missing field `steps`"))?,
+            limit: limit.ok_or_else(|| content.error("missing field `limit`"))?,
+        })
+    }
+}
+
+#[derive(Debug)]
 pub struct FindKeysNum {
     key_num_idx: i32,
     first_key: i32,
     key_step: i32,
 }
 
-#[derive(Debug, Deserialize)]
+impl Parse for FindKeysNum {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let content;
+        braced!(content in input);
+        let mut key_num_idx = None;
+        let mut first_key = None;
+        let mut key_step = None;
+        while !content.is_empty() {
+            let key: Ident = content.parse()?;
+            content.parse::<Token![:]>()?;
+            match key.to_string().as_str() {
+                "key_num_idx" => key_num_idx = Some(parse_i32(&content)?),
+                "first_key" => first_key = Some(parse_i32(&content)?),
+                "key_step" => key_step = Some(parse_i32(&content)?),
+                other => return Err(syn::Error::new(key.span(), format!("unknown field `{other}`"))),
+            }
+            let _ = content.parse::<Token![,]>();
+        }
+        Ok(Self {
+            key_num_idx: key_num_idx.ok_or_else(|| content.error("missing field `key_num_idx`"))?,
+            first_key: first_key.ok_or_else(|| content.error("missing field `first_key`"))?,
+            key_step: key_step.ok_or_else(|| content.error("missing field `key_step`"))?,
+        })
+    }
+}
+
+#[derive(Debug)]
 pub enum FindKeys {
     Range(FindKeysRange),
     Keynum(FindKeysNum),
 }
 
-#[derive(Debug, Deserialize)]
+impl Parse for FindKeys {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let ident: Ident = input.parse()?;
+        let content;
+        parenthesized!(content in input);
+        match ident.to_string().as_str() {
+            "Range" => Ok(Self::Range(content.parse()?)),
+            "Keynum" => Ok(Self::Keynum(content.parse()?)),
+            other => Err(syn::Error::new(ident.span(), format!("unknown find_keys variant `{other}`"))),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct BeginSearchIndex {
     index: i32,
 }
 
-#[derive(Debug, Deserialize)]
+impl Parse for BeginSearchIndex {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let content;
+        braced!(content in input);
+        let mut index = None;
+        while !content.is_empty() {
+            let key: Ident = content.parse()?;
+            content.parse::<Token![:]>()?;
+            match key.to_string().as_str() {
+                "index" => index = Some(parse_i32(&content)?),
+                other => return Err(syn::Error::new(key.span(), format!("unknown field `{other}`"))),
+            }
+            let _ = content.parse::<Token![,]>();
+        }
+        Ok(Self {
+            index: index.ok_or_else(|| content.error("missing field `index`"))?,
+        })
+    }
+}
+
+#[derive(Debug)]
 pub struct BeginSearchKeyword {
     keyword: String,
     startfrom: i32,
 }
 
-#[derive(Debug, Deserialize)]
+impl Parse for BeginSearchKeyword {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let content;
+        braced!(content in input);
+        let mut keyword = None;
+        let mut startfrom = None;
+        while !content.is_empty() {
+            let key: Ident = content.parse()?;
+            content.parse::<Token![:]>()?;
+            match key.to_string().as_str() {
+                "keyword" => {
+                    let lit: LitStr = content.parse()?;
+                    keyword = Some(lit.value());
+                }
+                "startfrom" => startfrom = Some(parse_i32(&content)?),
+                other => return Err(syn::Error::new(key.span(), format!("unknown field `{other}`"))),
+            }
+            let _ = content.parse::<Token![,]>();
+        }
+        Ok(Self {
+            keyword: keyword.ok_or_else(|| content.error("missing field `keyword`"))?,
+            startfrom: startfrom.ok_or_else(|| content.error("missing field `startfrom`"))?,
+        })
+    }
+}
+
+#[derive(Debug)]
 pub enum BeginSearch {
     Index(BeginSearchIndex),
     Keyword(BeginSearchKeyword), // (keyword, startfrom)
 }
 
-#[derive(Debug, Deserialize)]
+impl Parse for BeginSearch {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let ident: Ident = input.parse()?;
+        let content;
+        parenthesized!(content in input);
+        match ident.to_string().as_str() {
+            "Index" => Ok(Self::Index(content.parse()?)),
+            "Keyword" => Ok(Self::Keyword(content.parse()?)),
+            other => Err(syn::Error::new(ident.span(), format!("unknown begin_search variant `{other}`"))),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct KeySpecArg {
     notes: Option<String>,
     flags: Vec<RedisCommandKeySpecFlags>,
@@ -224,7 +456,39 @@ pub struct KeySpecArg {
     find_keys: FindKeys,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+impl Parse for KeySpecArg {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let content;
+        braced!(content in input);
+        let mut notes = None;
+        let mut flags = None;
+        let mut begin_search = None;
+        let mut find_keys = None;
+        while !content.is_empty() {
+            let key: Ident = content.parse()?;
+            content.parse::<Token![:]>()?;
+            match key.to_string().as_str() {
+                "notes" => {
+                    let lit: LitStr = content.parse()?;
+                    notes = Some(lit.value());
+                }
+                "flags" => flags = Some(parse_bracket_list(&content)?),
+                "begin_search" => begin_search = Some(content.parse()?),
+                "find_keys" => find_keys = Some(content.parse()?),
+                other => return Err(syn::Error::new(key.span(), format!("unknown field `{other}`"))),
+            }
+            let _ = content.parse::<Token![,]>();
+        }
+        Ok(Self {
+            notes,
+            flags: flags.ok_or_else(|| content.error("missing field `flags`"))?,
+            begin_search: begin_search.ok_or_else(|| content.error("missing field `begin_search`"))?,
+            find_keys: find_keys.ok_or_else(|| content.error("missing field `find_keys`"))?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandArgType {
     String,
     Integer,
@@ -235,6 +499,24 @@ pub enum CommandArgType {
     PureToken,
     OneOf,
     Block,
+}
+
+impl Parse for CommandArgType {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let ident: Ident = input.parse()?;
+        match ident.to_string().as_str() {
+            "String" => Ok(Self::String),
+            "Integer" => Ok(Self::Integer),
+            "Double" => Ok(Self::Double),
+            "Key" => Ok(Self::Key),
+            "Pattern" => Ok(Self::Pattern),
+            "UnixTime" => Ok(Self::UnixTime),
+            "PureToken" => Ok(Self::PureToken),
+            "OneOf" => Ok(Self::OneOf),
+            "Block" => Ok(Self::Block),
+            other => Err(syn::Error::new(ident.span(), format!("unknown arg type `{other}`"))),
+        }
+    }
 }
 
 impl From<CommandArgType> for u32 {
@@ -253,12 +535,25 @@ impl From<CommandArgType> for u32 {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum CommandArgFlags {
     None,
     Optional,
     Multiple,
     MultipleToken,
+}
+
+impl Parse for CommandArgFlags {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let ident: Ident = input.parse()?;
+        match ident.to_string().as_str() {
+            "None" => Ok(Self::None),
+            "Optional" => Ok(Self::Optional),
+            "Multiple" => Ok(Self::Multiple),
+            "MultipleToken" => Ok(Self::MultipleToken),
+            other => Err(syn::Error::new(ident.span(), format!("unknown arg flag `{other}`"))),
+        }
+    }
 }
 
 impl From<&CommandArgFlags> for &'static str {
@@ -272,7 +567,7 @@ impl From<&CommandArgFlags> for &'static str {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CommandArg {
     pub name: String,
     pub arg_type: CommandArgType,
@@ -286,7 +581,118 @@ pub struct CommandArg {
     pub display_text: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+impl Parse for CommandArg {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let content;
+        braced!(content in input);
+        let mut name = None;
+        let mut arg_type = None;
+        let mut key_spec_index = None;
+        let mut token = None;
+        let mut summary = None;
+        let mut since = None;
+        let mut flags = None;
+        let mut deprecated_since = None;
+        let mut subargs = None;
+        let mut display_text = None;
+        while !content.is_empty() {
+            let key: Ident = content.parse()?;
+            content.parse::<Token![:]>()?;
+            match key.to_string().as_str() {
+                "name" => {
+                    let lit: LitStr = content.parse()?;
+                    name = Some(lit.value());
+                }
+                "arg_type" => arg_type = Some(content.parse()?),
+                "key_spec_index" => key_spec_index = Some(parse_u32(&content)?),
+                "token" => {
+                    let lit: LitStr = content.parse()?;
+                    token = Some(lit.value());
+                }
+                "summary" => {
+                    let lit: LitStr = content.parse()?;
+                    summary = Some(lit.value());
+                }
+                "since" => {
+                    let lit: LitStr = content.parse()?;
+                    since = Some(lit.value());
+                }
+                "flags" => flags = Some(parse_bracket_list(&content)?),
+                "deprecated_since" => {
+                    let lit: LitStr = content.parse()?;
+                    deprecated_since = Some(lit.value());
+                }
+                "subargs" => subargs = Some(parse_bracket_list(&content)?),
+                "display_text" => {
+                    let lit: LitStr = content.parse()?;
+                    display_text = Some(lit.value());
+                }
+                other => return Err(syn::Error::new(key.span(), format!("unknown field `{other}`"))),
+            }
+            let _ = content.parse::<Token![,]>();
+        }
+        Ok(Self {
+            name: name.ok_or_else(|| content.error("missing field `name`"))?,
+            arg_type: arg_type.ok_or_else(|| content.error("missing field `arg_type`"))?,
+            key_spec_index,
+            token,
+            summary,
+            since,
+            flags,
+            deprecated_since,
+            subargs,
+            display_text,
+        })
+    }
+}
+
+fn parse_acl_category(input: ParseStream) -> parse::Result<AclCategory> {
+    let ident: Ident = input.parse()?;
+    match ident.to_string().as_str() {
+        "None" => Ok(AclCategory::None),
+        "Keyspace" => Ok(AclCategory::Keyspace),
+        "Read" => Ok(AclCategory::Read),
+        "Write" => Ok(AclCategory::Write),
+        "Set" => Ok(AclCategory::Set),
+        "SortedSet" => Ok(AclCategory::SortedSet),
+        "List" => Ok(AclCategory::List),
+        "Hash" => Ok(AclCategory::Hash),
+        "String" => Ok(AclCategory::String),
+        "Bitmap" => Ok(AclCategory::Bitmap),
+        "HyperLogLog" => Ok(AclCategory::HyperLogLog),
+        "Geo" => Ok(AclCategory::Geo),
+        "Stream" => Ok(AclCategory::Stream),
+        "PubSub" => Ok(AclCategory::PubSub),
+        "Admin" => Ok(AclCategory::Admin),
+        "Fast" => Ok(AclCategory::Fast),
+        "Slow" => Ok(AclCategory::Slow),
+        "Blocking" => Ok(AclCategory::Blocking),
+        "Dangerous" => Ok(AclCategory::Dangerous),
+        "Connection" => Ok(AclCategory::Connection),
+        "Transaction" => Ok(AclCategory::Transaction),
+        "Scripting" => Ok(AclCategory::Scripting),
+        "Single" => {
+            let inner;
+            parenthesized!(inner in input);
+            let lit: LitStr = inner.parse()?;
+            Ok(AclCategory::Single(lit.value()))
+        }
+        other => Err(syn::Error::new(ident.span(), format!("unknown ACL category `{other}`"))),
+    }
+}
+
+fn parse_acl_category_list(input: ParseStream) -> parse::Result<Vec<AclCategory>> {
+    let content;
+    bracketed!(content in input);
+    let mut items = Vec::new();
+    while !content.is_empty() {
+        items.push(parse_acl_category(&content)?);
+        let _ = content.parse::<Token![,]>();
+    }
+    Ok(items)
+}
+
+#[derive(Debug)]
 struct Args {
     name: Option<String>,
     flags: Vec<RedisCommandFlags>,
@@ -303,7 +709,66 @@ struct Args {
 
 impl Parse for Args {
     fn parse(input: ParseStream) -> parse::Result<Self> {
-        from_stream(config::JSONY, input)
+        let content;
+        braced!(content in input);
+        let mut name = None;
+        let mut flags = None;
+        let mut enterprise_flags = None;
+        let mut summary = None;
+        let mut complexity = None;
+        let mut since = None;
+        let mut tips = None;
+        let mut arity = None;
+        let mut key_spec = None;
+        let mut args = None;
+        let mut acl_categories = None;
+        while !content.is_empty() {
+            let key: Ident = content.parse()?;
+            content.parse::<Token![:]>()?;
+            match key.to_string().as_str() {
+                "name" => {
+                    let lit: LitStr = content.parse()?;
+                    name = Some(lit.value());
+                }
+                "flags" => flags = Some(parse_bracket_list(&content)?),
+                "enterprise_flags" => enterprise_flags = Some(parse_optional_bracket_list(&content)?),
+                "summary" => {
+                    let lit: LitStr = content.parse()?;
+                    summary = Some(lit.value());
+                }
+                "complexity" => {
+                    let lit: LitStr = content.parse()?;
+                    complexity = Some(lit.value());
+                }
+                "since" => {
+                    let lit: LitStr = content.parse()?;
+                    since = Some(lit.value());
+                }
+                "tips" => {
+                    let lit: LitStr = content.parse()?;
+                    tips = Some(lit.value());
+                }
+                "arity" => arity = Some(parse_i64(&content)?),
+                "key_spec" => key_spec = Some(parse_bracket_list(&content)?),
+                "args" => args = Some(parse_bracket_list(&content)?),
+                "acl_categories" => acl_categories = Some(parse_acl_category_list(&content)?),
+                other => return Err(syn::Error::new(key.span(), format!("unknown field `{other}`"))),
+            }
+            let _ = content.parse::<Token![,]>();
+        }
+        Ok(Self {
+            name,
+            flags: flags.ok_or_else(|| content.error("missing field `flags`"))?,
+            enterprise_flags,
+            summary,
+            complexity,
+            since,
+            tips,
+            arity: arity.ok_or_else(|| content.error("missing field `arity`"))?,
+            key_spec: key_spec.ok_or_else(|| content.error("missing field `key_spec`"))?,
+            args,
+            acl_categories,
+        })
     }
 }
 
