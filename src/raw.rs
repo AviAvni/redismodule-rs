@@ -2,9 +2,9 @@
 // point.
 #![allow(dead_code)]
 
-extern crate enum_primitive_derive;
 extern crate libc;
-extern crate num_traits;
+
+use num_enum::FromPrimitive;
 
 use std::cmp::Ordering;
 use std::ffi::{c_ulonglong, CStr, CString};
@@ -14,9 +14,7 @@ use std::slice;
 
 use crate::RedisResult;
 use bitflags::bitflags;
-use enum_primitive_derive::Primitive;
 use libc::size_t;
-use num_traits::FromPrimitive;
 
 use crate::error::Error;
 pub use crate::redisraw::bindings::*;
@@ -40,62 +38,60 @@ bitflags! {
     }
 }
 
-#[derive(Primitive, Debug, PartialEq, Eq)]
+#[derive(FromPrimitive, Debug, PartialEq, Eq)]
+#[repr(i32)]
 pub enum KeyType {
-    Empty = REDISMODULE_KEYTYPE_EMPTY,
-    String = REDISMODULE_KEYTYPE_STRING,
-    List = REDISMODULE_KEYTYPE_LIST,
-    Hash = REDISMODULE_KEYTYPE_HASH,
-    Set = REDISMODULE_KEYTYPE_SET,
-    ZSet = REDISMODULE_KEYTYPE_ZSET,
-    Module = REDISMODULE_KEYTYPE_MODULE,
-    Stream = REDISMODULE_KEYTYPE_STREAM,
+    #[default]
+    Empty = REDISMODULE_KEYTYPE_EMPTY as i32,
+    String = REDISMODULE_KEYTYPE_STRING as i32,
+    List = REDISMODULE_KEYTYPE_LIST as i32,
+    Hash = REDISMODULE_KEYTYPE_HASH as i32,
+    Set = REDISMODULE_KEYTYPE_SET as i32,
+    ZSet = REDISMODULE_KEYTYPE_ZSET as i32,
+    Module = REDISMODULE_KEYTYPE_MODULE as i32,
+    Stream = REDISMODULE_KEYTYPE_STREAM as i32,
 }
 
-impl From<c_int> for KeyType {
-    fn from(v: c_int) -> Self {
-        Self::from_i32(v).unwrap()
-    }
-}
-
-#[derive(Primitive, Debug, PartialEq, Eq)]
+#[derive(FromPrimitive, Debug, PartialEq, Eq)]
+#[repr(i32)]
 pub enum Where {
-    ListHead = REDISMODULE_LIST_HEAD,
-    ListTail = REDISMODULE_LIST_TAIL,
+    #[default]
+    ListHead = REDISMODULE_LIST_HEAD as i32,
+    ListTail = REDISMODULE_LIST_TAIL as i32,
 }
 
-#[derive(Primitive, Debug, PartialEq, Eq)]
+#[derive(FromPrimitive, Debug, PartialEq, Eq)]
+#[repr(i32)]
 pub enum ReplyType {
-    Unknown = REDISMODULE_REPLY_UNKNOWN,
-    String = REDISMODULE_REPLY_STRING,
-    Error = REDISMODULE_REPLY_ERROR,
-    Integer = REDISMODULE_REPLY_INTEGER,
-    Array = REDISMODULE_REPLY_ARRAY,
-    Null = REDISMODULE_REPLY_NULL,
-    Map = REDISMODULE_REPLY_MAP,
-    Set = REDISMODULE_REPLY_SET,
-    Bool = REDISMODULE_REPLY_BOOL,
-    Double = REDISMODULE_REPLY_DOUBLE,
-    BigNumber = REDISMODULE_REPLY_BIG_NUMBER,
-    VerbatimString = REDISMODULE_REPLY_VERBATIM_STRING,
+    #[default]
+    Unknown = REDISMODULE_REPLY_UNKNOWN as i32,
+    String = REDISMODULE_REPLY_STRING as i32,
+    Error = REDISMODULE_REPLY_ERROR as i32,
+    Integer = REDISMODULE_REPLY_INTEGER as i32,
+    Array = REDISMODULE_REPLY_ARRAY as i32,
+    Null = REDISMODULE_REPLY_NULL as i32,
+    Map = REDISMODULE_REPLY_MAP as i32,
+    Set = REDISMODULE_REPLY_SET as i32,
+    Bool = REDISMODULE_REPLY_BOOL as i32,
+    Double = REDISMODULE_REPLY_DOUBLE as i32,
+    BigNumber = REDISMODULE_REPLY_BIG_NUMBER as i32,
+    VerbatimString = REDISMODULE_REPLY_VERBATIM_STRING as i32,
 }
 
-impl From<c_int> for ReplyType {
-    fn from(v: c_int) -> Self {
-        Self::from_i32(v).unwrap()
-    }
-}
-
-#[derive(Primitive, Debug, PartialEq, Eq)]
+#[derive(FromPrimitive, Debug, PartialEq, Eq)]
+#[repr(i32)]
 pub enum Aux {
-    Before = REDISMODULE_AUX_BEFORE_RDB,
-    After = REDISMODULE_AUX_AFTER_RDB,
+    #[default]
+    Before = REDISMODULE_AUX_BEFORE_RDB as i32,
+    After = REDISMODULE_AUX_AFTER_RDB as i32,
 }
 
-#[derive(Primitive, Debug, PartialEq, Eq)]
+#[derive(FromPrimitive, Debug, PartialEq, Eq)]
+#[repr(i32)]
 pub enum Status {
-    Ok = REDISMODULE_OK,
-    Err = REDISMODULE_ERR,
+    #[default]
+    Ok = REDISMODULE_OK as i32,
+    Err = REDISMODULE_ERR as i32,
 }
 
 impl From<Status> for RedisResult<()> {
@@ -104,12 +100,6 @@ impl From<Status> for RedisResult<()> {
             Status::Ok => Ok(()),
             Status::Err => Err(RedisError::Str(GENERIC_ERROR_MESSAGE)),
         }
-    }
-}
-
-impl From<c_int> for Status {
-    fn from(v: c_int) -> Self {
-        Self::from_i32(v).unwrap()
     }
 }
 
