@@ -1408,7 +1408,10 @@ mod tests {
     #[test]
     fn legal_resp_string_keeps_utf8() {
         let s = "Invalid input: MATCH (n {name:'一中文Ā'})";
-        assert_eq!(Context::str_as_legal_resp_string(s).to_bytes(), s.as_bytes());
+        assert_eq!(
+            Context::str_as_legal_resp_string(s).to_bytes(),
+            s.as_bytes()
+        );
     }
 
     #[test]
