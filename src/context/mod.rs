@@ -467,16 +467,22 @@ impl Context {
     }
 
     #[must_use]
+    /// `s` as a RESP simple string or error: `\r`, `\n` and NUL become spaces, every
+    /// other byte is kept, so UTF-8 text passes through unchanged.
+    ///
+    /// Works on bytes, not chars: casting a `char` to `u8` keeps only its low byte,
+    /// which garbles non-ASCII text and turns any code point ending in `00` (`'一'`
+    /// U+4E00, `'Ā'` U+0100) into a NUL that made `CString::new` panic.
     pub fn str_as_legal_resp_string(s: &str) -> CString {
-        CString::new(
-            s.chars()
-                .map(|c| match c {
-                    '\r' | '\n' | '\0' => b' ',
-                    _ => c as u8,
-                })
-                .collect::<Vec<_>>(),
-        )
-        .unwrap()
+        let bytes = s
+            .bytes()
+            .map(|b| match b {
+                b'\r' | b'\n' | 0 => b' ',
+                _ => b,
+            })
+            .collect::<Vec<_>>();
+        // Safety: every NUL was replaced above.
+        unsafe { CString::from_vec_unchecked(bytes) }
     }
 
     #[allow(clippy::must_use_candidate)]
@@ -515,12 +521,12 @@ impl Context {
             Ok(RedisValue::Integer(v)) => raw::reply_with_long_long(self.ctx, v),
             Ok(RedisValue::Float(v)) => raw::reply_with_double(self.ctx, v),
             Ok(RedisValue::SimpleStringStatic(s)) => {
-                let msg = CString::new(s).unwrap();
+                let msg = Self::str_as_legal_resp_string(s);
                 raw::reply_with_simple_string(self.ctx, msg.as_ptr())
             }
 
             Ok(RedisValue::SimpleString(s)) => {
-                let msg = CString::new(s).unwrap();
+                let msg = Self::str_as_legal_resp_string(&s);
                 raw::reply_with_simple_string(self.ctx, msg.as_ptr())
             }
 
@@ -1392,5 +1398,25 @@ bitflags! {
 
         /// Redis is currently async loading database for diskless replication.
         const ASYNC_LOADING = raw::REDISMODULE_CTX_FLAGS_ASYNC_LOADING as c_int;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Context;
+
+    #[test]
+    fn legal_resp_string_keeps_utf8() {
+        let s = "Invalid input: MATCH (n {name:'一中文Ā'})";
+        assert_eq!(
+            Context::str_as_legal_resp_string(s).to_bytes(),
+            s.as_bytes()
+        );
+    }
+
+    #[test]
+    fn legal_resp_string_replaces_crlf_and_nul() {
+        let s = "a\r\nb\0c";
+        assert_eq!(Context::str_as_legal_resp_string(s).to_bytes(), b"a  b c");
     }
 }
